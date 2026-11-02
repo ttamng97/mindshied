@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 
 type IconName =
   | 'shield' | 'home' | 'calendar' | 'lock' | 'settings' | 'bell' | 'zap'
@@ -60,6 +60,9 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [focusMode, setFocusMode] = useState(true)
   const [lowStimulus, setLowStimulus] = useState(false)
+  const [questOpen, setQuestOpen] = useState(false)
+  const [streakDialogOpen, setStreakDialogOpen] = useState(false)
+  const [streakDays, setStreakDays] = useState(3)
 
   const notify = (message: string) => {
     setToast(message)
@@ -115,7 +118,7 @@ function App() {
           {notificationsOpen && <NotificationPanel close={() => setNotificationsOpen(false)} notify={notify} />}
         </header>
 
-        {tab === 'home' && <Home pushups={pushups} pullups={pullups} spent={spent} addPushups={addPushups} setPullups={setPullups} setSpent={setSpent} setSos={setSos} notify={notify} />}
+        {tab === 'home' && <Home streakDays={streakDays} openQuest={() => setQuestOpen(true)} openStreakDialog={() => setStreakDialogOpen(true)} pushups={pushups} pullups={pullups} spent={spent} addPushups={addPushups} setPullups={setPullups} setSpent={setSpent} setSos={setSos} notify={notify} />}
         {tab === 'planner' && <Planner pushups={pushups} pullups={pullups} addPushups={addPushups} setPullups={setPullups} spent={spent} setSpent={setSpent} checked={checked} setChecked={setChecked} setSos={setSos} notify={notify} />}
         {tab === 'guard' && <Guard values={protections} setValues={setProtections} notify={notify} />}
       </main>
@@ -125,13 +128,16 @@ function App() {
       </nav>
 
       {sos && <SosModal close={() => setSos(false)} action={() => { setSos(false); addPushups(25) }} />}
+      {questOpen && <CosmicQuestMap streakDays={streakDays} close={() => setQuestOpen(false)} openSos={() => { setQuestOpen(false); setSos(true) }} notify={notify} />}
+      {streakDialogOpen && <SetStreakDialog current={streakDays} close={() => setStreakDialogOpen(false)} save={(days) => { setStreakDays(days); setStreakDialogOpen(false); notify(`Đã đồng bộ chuỗi ${days} ngày`) }} />}
       {settingsOpen && <SettingsModal close={() => setSettingsOpen(false)} focusMode={focusMode} setFocusMode={setFocusMode} lowStimulus={lowStimulus} setLowStimulus={setLowStimulus} notify={notify} />}
       {toast && <div className="toast"><span><Icon name="check" size={15} /></span>{toast}</div>}
     </div>
   )
 }
 
-function Home({ pushups, pullups, spent, addPushups, setPullups, setSpent, setSos, notify }: {
+function Home({ streakDays, openQuest, openStreakDialog, pushups, pullups, spent, addPushups, setPullups, setSpent, setSos, notify }: {
+  streakDays: number; openQuest: () => void; openStreakDialog: () => void
   pushups: number; pullups: number; spent: number; addPushups: (n?: number) => void
   setPullups: React.Dispatch<React.SetStateAction<number>>; setSpent: React.Dispatch<React.SetStateAction<number>>
   setSos: (v: boolean) => void; notify: (s: string) => void
@@ -141,19 +147,10 @@ function Home({ pushups, pullups, spent, addPushups, setPullups, setSpent, setSo
       <div className="hero-copy">
         <Pill><span className="live-dot" /> CHUỖI ĐANG HOẠT ĐỘNG</Pill>
         <h2>Giữ tâm trí vững,<br /><em>tái thiết từng ngày.</em></h2>
-        <p>Bạn đã vượt qua 72 giờ đầu tiên. Hệ thần kinh đang bắt đầu cân bằng và năng lượng nền đang trở lại.</p>
-        <div className="next-gate"><span><Icon name="zap" /></span><div><small>CỬA ẢI TIẾP THEO</small><strong>7 ngày · Đỉnh Testosterone</strong></div><Pill tone="gold">CÒN 4 NGÀY</Pill></div>
+        <p>Bạn đã giữ cam kết qua những ngày đầu nhiều dao động. Tiếp tục ưu tiên giấc ngủ, vận động và môi trường ít tác nhân kích hoạt.</p>
+        <div className="next-gate"><span><Icon name="zap" /></span><div><small>CỬA ẢI TIẾP THEO</small><strong>7 ngày · Nhịp sống ổn định</strong></div><Pill tone="gold">CÒN {Math.max(0, 7 - streakDays)} NGÀY</Pill></div>
       </div>
-      <div className="chrono-wrap">
-        <div className="chrono-orbit orbit-one" />
-        <div className="chrono-orbit orbit-two" />
-        <div className="chrono">
-          <svg viewBox="0 0 220 220"><circle className="ring-track" cx="110" cy="110" r="94" /><circle className="ring-progress" cx="110" cy="110" r="94" /></svg>
-          <div className="chrono-core"><span>NGÀY</span><strong>03</strong><small>TỈNH THỨC</small><Pill><Icon name="zap" size={11} /> TÂN BINH</Pill></div>
-        </div>
-        <div className="ring-label label-a">72H <span>ỔN ĐỊNH</span></div>
-        <div className="ring-label label-b">43% <span>TIẾN ĐỘ</span></div>
-      </div>
+      <ChronoRing streakDays={streakDays} openQuest={openQuest} openStreakDialog={openStreakDialog} />
     </section>
 
     <section className="quick-grid">
@@ -189,6 +186,42 @@ function Home({ pushups, pullups, spent, addPushups, setPullups, setSpent, setSo
       <div className="insight-icon"><Icon name="brain" /></div><div><small>STOIC INSIGHT · 16:38</small><p>“Đừng đòi hỏi mọi việc xảy ra như bạn muốn. Hãy muốn chúng xảy ra như chúng vốn có — và bạn sẽ bình an.”</p><span>— Epictetus</span></div><button onClick={() => notify('Đã lưu insight hôm nay')}>LƯU LẠI <Icon name="arrow" size={14} /></button>
     </section>
   </div>
+}
+
+function ChronoRing({ streakDays, openQuest, openStreakDialog }: { streakDays: number; openQuest: () => void; openStreakDialog: () => void }) {
+  const timer = useRef<number | null>(null)
+  const longPressed = useRef(false)
+  const haptic = (duration: number) => navigator.vibrate?.(duration)
+  const beginPress = () => {
+    longPressed.current = false
+    timer.current = window.setTimeout(() => {
+      longPressed.current = true
+      haptic(80)
+      openStreakDialog()
+    }, 650)
+  }
+  const cancelPress = () => {
+    if (timer.current) window.clearTimeout(timer.current)
+    timer.current = null
+  }
+  const finishPress = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    cancelPress()
+    if (!longPressed.current) {
+      haptic(18)
+      openQuest()
+    }
+  }
+  return <div className="chrono-wrap">
+        <div className="chrono-orbit orbit-one" />
+        <div className="chrono-orbit orbit-two" />
+        <button className="chrono" aria-label={`${streakDays} ngày tỉnh thức. Chạm để mở bản đồ, nhấn giữ để chỉnh chuỗi.`} onPointerDown={(event) => { event.currentTarget.setPointerCapture?.(event.pointerId); beginPress() }} onPointerUp={finishPress} onPointerCancel={cancelPress} onContextMenu={(event) => event.preventDefault()}>
+          <svg viewBox="0 0 220 220"><circle className="ring-track" cx="110" cy="110" r="94" /><circle className="ring-progress" cx="110" cy="110" r="94" /></svg>
+          <div className="chrono-core"><span>NGÀY</span><strong>{String(streakDays).padStart(2, '0')}</strong><small>TỈNH THỨC</small><Pill><Icon name="zap" size={11} /> {streakDays >= 30 ? 'KỶ LUẬT GIA' : 'TÂN BINH'}</Pill><em>CHẠM ĐỂ MỞ BẢN ĐỒ</em></div>
+        </button>
+        <div className="ring-label label-a">72H <span>ỔN ĐỊNH</span></div>
+        <div className="ring-label label-b">43% <span>TIẾN ĐỘ</span></div>
+      </div>
 }
 
 function Quick({ icon, label, value, onClick, gold, danger }: { icon: IconName; label: string; value: string; onClick: () => void; gold?: boolean; danger?: boolean }) {
@@ -322,6 +355,143 @@ function SettingsModal({ close, focusMode, setFocusMode, lowStimulus, setLowStim
 
 function SettingRow({ icon, title, text, enabled, setEnabled }: { icon: IconName; title: string; text: string; enabled: boolean; setEnabled: React.Dispatch<React.SetStateAction<boolean>> }) {
   return <div className="settings-link"><span className="settings-row-icon"><Icon name={icon}/></span><span><strong>{title}</strong><small>{text}</small></span><button className={`toggle ${enabled ? 'on' : ''}`} onClick={() => setEnabled(value => !value)} aria-label={`Bật tắt ${title}`}><i/></button></div>
+}
+
+type Milestone = {
+  day: number
+  title: string
+  code: string
+  signal: string
+  power: string
+  trap: string
+  protocol: string
+}
+
+const milestones: Milestone[] = [
+  { day: 1, title: 'Thoát lực hút cũ', code: 'IGNITION', signal: 'Ham muốn và cảm xúc có thể dao động mạnh khi bạn thay đổi một thói quen quen thuộc.', power: 'Nhận diện được tác nhân kích hoạt sớm hơn.', trap: 'Tự tin quá sớm và quay lại môi trường cũ.', protocol: 'Rời khỏi màn hình, đổi không gian và hoàn thành một việc thể chất ngắn.' },
+  { day: 3, title: 'Vùng trũng động lực', code: 'DOPAMINE DIP', signal: 'Mức năng lượng và động lực chủ quan có thể lên xuống. Trải nghiệm khác nhau ở mỗi người.', power: 'Khả năng quan sát xung động mà chưa cần hành động theo nó.', trap: 'Diễn giải cảm giác chán hoặc mệt như một thất bại.', protocol: 'Ăn đủ, ngủ đúng giờ và giảm mục tiêu xuống một hành động có thể hoàn thành.' },
+  { day: 7, title: 'Nhịp sống ổn định', code: 'FIRST ORBIT', signal: 'Một tuần là mốc hành vi dễ ghi nhớ, không phải lịch thay đổi hormone hay não bộ cố định.', power: 'Tạo được khoảng cách rõ hơn giữa tín hiệu và phản ứng.', trap: 'Tìm kiếm phần thưởng nhanh vì nghĩ mình đã “an toàn”.', protocol: 'Giữ lịch sinh hoạt đơn giản và lên kế hoạch trước cho buổi tối.' },
+  { day: 14, title: 'Tập trung chủ động', code: 'DEEP FOCUS', signal: 'Thói quen mới có thể bắt đầu quen thuộc hơn khi được lặp trong cùng bối cảnh.', power: 'Dễ quay lại công việc quan trọng sau khi bị xao nhãng.', trap: 'Làm việc quá sức rồi dùng nội dung kích thích để xả stress.', protocol: 'Chia phiên code 50 phút, nghỉ vận động 10 phút và kết thúc đúng giờ.' },
+  { day: 21, title: 'Đường mòn mới', code: 'NEW PATH', signal: 'Bạn đang tích lũy bằng chứng hành vi rằng mình có thể giữ cam kết.', power: 'Tự tin dựa trên hành động thay vì cảm xúc nhất thời.', trap: 'Đồng nhất một lần trượt với việc mất toàn bộ tiến bộ.', protocol: 'Nếu gặp sự cố, ghi lại tác nhân và quay về nhịp sinh hoạt ngay trong ngày.' },
+  { day: 30, title: 'Master of Habit', code: 'LUNAR MARK', signal: 'Ba mươi ngày là cột mốc game hóa có ý nghĩa cá nhân; tốc độ hình thành thói quen không giống nhau.', power: 'Một hệ thống phòng vệ và phục hồi đã có hình dạng rõ ràng.', trap: 'Bỏ các hàng rào bảo vệ vì cảm thấy đã kiểm soát hoàn toàn.', protocol: 'Kiểm tra lại môi trường, lịch ngủ và người có thể liên hệ khi khẩn cấp.' },
+  { day: 60, title: 'Kiến trúc kỷ luật', code: 'SYSTEM BUILDER', signal: 'Sự nhất quán dài hơn giúp bạn quan sát mẫu hành vi qua nhiều hoàn cảnh.', power: 'Thiết kế môi trường thay vì chỉ dựa vào ý chí.', trap: 'Cô lập bản thân hoặc biến chuỗi ngày thành áp lực hoàn hảo.', protocol: 'Duy trì kết nối xã hội lành mạnh và cho phép lịch trình có độ linh hoạt.' },
+  { day: 90, title: 'Hall of Focus', code: 'DEEP ORBIT', signal: 'Đây là mốc ghi nhận nỗ lực, không phải “reset hoàn toàn” hệ thần kinh.', power: 'Có bộ công cụ cá nhân rõ ràng để xử lý ngày khó.', trap: 'Xem việc đạt mốc là điểm kết thúc thay vì một hệ thống sống.', protocol: 'Chọn một mục tiêu học tập, sức khỏe hoặc tài chính cho chặng tiếp theo.' },
+  { day: 120, title: 'Vanguard', code: 'ASCENT I', signal: 'Chuỗi dài phản ánh nhiều quyết định nhỏ được lặp lại, không bảo đảm một kết quả sức khỏe cụ thể.', power: 'Khả năng ưu tiên mục tiêu dài hạn tốt hơn.', trap: 'Quên các yếu tố nền tảng: ngủ, ăn, vận động và kết nối.', protocol: 'Đánh giá bốn trụ cột mỗi tuần, sửa một điểm yếu thay vì sửa tất cả.' },
+  { day: 180, title: 'Endurance', code: 'ASCENT II', signal: 'Bạn đã đi qua nhiều chu kỳ cảm xúc và bối cảnh khác nhau.', power: 'Sức bền hành vi và khả năng quay lại sau gián đoạn.', trap: 'Giữ kín khó khăn vì hình ảnh “người có kỷ luật”.', protocol: 'Chia sẻ sớm với người tin cậy hoặc chuyên gia khi cảm thấy mất kiểm soát.' },
+  { day: 270, title: 'Architect', code: 'ASCENT III', signal: 'Hệ thống của bạn đã có đủ dữ liệu để được tinh chỉnh theo thực tế cá nhân.', power: 'Biết rõ môi trường nào giúp mình làm việc và phục hồi tốt.', trap: 'Tối ưu hóa quá mức và biến cuộc sống thành bảng điểm.', protocol: 'Giữ khoảng trống cho nghỉ ngơi, vui chơi lành mạnh và các mối quan hệ.' },
+  { day: 365, title: 'Transcendent', code: 'SOLAR CYCLE', signal: 'Một năm là cột mốc danh dự cho cam kết bền bỉ, không phải chứng nhận y khoa.', power: 'Một căn tính mới được củng cố bằng lịch sử hành động thực tế.', trap: 'Sợ mất chuỗi đến mức tự trách hoặc che giấu sự cố.', protocol: 'Tôn vinh tiến bộ, giữ thái độ thực tế và tiếp tục chăm sóc sức khỏe toàn diện.' },
+]
+
+function CosmicQuestMap({ streakDays, close, openSos, notify }: { streakDays: number; close: () => void; openSos: () => void; notify: (message: string) => void }) {
+  const [selected, setSelected] = useState<Milestone | null>(null)
+  const [tool, setTool] = useState<'breath' | 'sanctuary' | null>(null)
+  const currentIndex = Math.max(0, milestones.findLastIndex(item => item.day <= streakDays))
+  const points = [[18,91],[38,84],[66,79],[80,69],[59,61],[31,56],[17,45],[40,38],[70,34],[82,23],[58,14],[29,7]]
+  const path = points.map(([x,y], index) => `${index ? 'L' : 'M'} ${x * 10} ${y * 10}`).join(' ')
+  const openMilestone = (item: Milestone) => {
+    navigator.vibrate?.(14)
+    setSelected(item)
+  }
+  return <div className="quest-screen">
+    <header className="quest-header">
+      <button className="quest-back" onClick={close}><Icon name="arrow" size={18}/><span>TRỞ VỀ</span></button>
+      <div><span>COSMIC QUEST · SEASON 01</span><h1>Bản đồ bậc thang vũ trụ</h1></div>
+      <div className="quest-streak"><small>CHUỖI HIỆN TẠI</small><strong>{streakDays}</strong><span>NGÀY</span></div>
+    </header>
+    <main className="quest-layout">
+      <section className="star-map">
+        <div className="map-grid"/>
+        <div className="map-nebula nebula-a"/><div className="map-nebula nebula-b"/>
+        <svg className="quest-path" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"><path className="trail-shadow" d={path}/><path className="trail-active" d={path}/></svg>
+        {milestones.map((item, index) => {
+          const status = index < currentIndex ? 'complete' : index === currentIndex ? 'current' : 'locked'
+          return <button key={item.day} className={`quest-node ${status}`} style={{ left: `${points[index][0]}%`, top: `${points[index][1]}%` }} onClick={() => openMilestone(item)}>
+            <span className="node-radar"/><span className="node-core">{status === 'complete' ? <Icon name="check" size={18}/> : status === 'locked' ? <Icon name="lock" size={16}/> : <Icon name="shield" size={20}/>}</span>
+            <span className="node-copy"><small>{item.code}</small><strong>Ngày {item.day}</strong><em>{item.title}</em></span>
+          </button>
+        })}
+        <div className="map-legend"><span><i className="complete"/>Đã vượt</span><span><i className="current"/>Vị trí hiện tại</span><span><i/>Chưa mở</span></div>
+      </section>
+      <aside className="quest-console">
+        <div className="console-head"><span className="live-dot"/><span>LIVE MISSION ANALYSIS</span><strong>NODE {String(currentIndex + 1).padStart(2,'0')}</strong></div>
+        <h2>{milestones[currentIndex].title}</h2>
+        <p>{milestones[currentIndex].signal}</p>
+        <div className="console-note"><Icon name="info" size={17}/><span>Nội dung là khung động viên và tự quan sát, không phải dự đoán hormone, não bộ hoặc kết quả điều trị.</span></div>
+        <div className="mission-data"><div><small>TIẾN ĐỘ TOÀN TUYẾN</small><strong>{Math.round((currentIndex + 1) / milestones.length * 100)}%</strong></div><div><small>MỐC TIẾP THEO</small><strong>{milestones[Math.min(currentIndex + 1, 11)].day} ngày</strong></div></div>
+        <div className="tool-title"><span>CÔNG CỤ CỨU NGUY</span><small>Chọn một hành động, làm ngay</small></div>
+        <button className="rescue-tool breath" onClick={() => setTool('breath')}><span><Icon name="activity"/></span><div><strong>Thở 4–7–8</strong><small>Dẫn nhịp thở chậm trong 60 giây</small></div><Icon name="arrow" size={16}/></button>
+        <button className="rescue-tool urge" onClick={openSos}><span><Icon name="zap"/></span><div><strong>Cắt cơn thèm</strong><small>Phác đồ chuyển hướng xung động</small></div><Icon name="arrow" size={16}/></button>
+        <button className="rescue-tool sanctuary" onClick={() => setTool('sanctuary')}><span><Icon name="moon"/></span><div><strong>Điện thờ phục hồi</strong><small>Không gian giảm kích thích</small></div><Icon name="arrow" size={16}/></button>
+        <button className="quest-share" onClick={() => notify('Đã lưu ảnh hành trình vào bộ sưu tập')}><Icon name="shield" size={15}/> LƯU THẺ HÀNH TRÌNH</button>
+      </aside>
+    </main>
+    {selected && <MilestoneDialog item={selected} status={selected.day <= streakDays ? 'ĐÃ KHÁM PHÁ' : 'DỮ LIỆU TƯƠNG LAI'} close={() => setSelected(null)}/>}
+    {tool === 'breath' && <BreathingDialog close={() => setTool(null)}/>}
+    {tool === 'sanctuary' && <SanctuaryDialog close={() => setTool(null)}/>}
+  </div>
+}
+
+function MilestoneDialog({ item, status, close }: { item: Milestone; status: string; close: () => void }) {
+  return <div className="modal-backdrop quest-dialog-backdrop" onMouseDown={close}><section className="milestone-dialog" role="dialog" aria-modal="true" aria-label={`Mốc ngày ${item.day}`} onMouseDown={event => event.stopPropagation()}>
+    <button className="modal-close" onClick={close}><Icon name="x"/></button>
+    <div className="medal"><div><Icon name="shield" size={35}/></div><span>NODE {String(milestones.indexOf(item)+1).padStart(2,'0')}</span></div>
+    <Pill>{status}</Pill><h2>Ngày {item.day} · {item.title}</h2><p className="milestone-code">{item.code}</p>
+    <div className="evidence-note"><Icon name="info"/><p>Các mốc là nội dung game hóa. Không có phần trăm phục hồi dopamine, prolactin hoặc testosterone đáng tin cậy áp dụng giống nhau cho mọi người theo số ngày.</p></div>
+    <div className="milestone-detail-grid">
+      <div><span className="detail-icon"><Icon name="activity"/></span><small>TÍN HIỆU CÓ THỂ GẶP</small><p>{item.signal}</p></div>
+      <div><span className="detail-icon purple"><Icon name="zap"/></span><small>NĂNG LỰC ĐANG RÈN</small><p>{item.power}</p></div>
+      <div><span className="detail-icon red"><Icon name="info"/></span><small>CẠM BẪY ĐIỂN HÌNH</small><p>{item.trap}</p></div>
+      <div><span className="detail-icon gold"><Icon name="shield"/></span><small>PHÁC ĐỒ THỰC CHIẾN</small><p>{item.protocol}</p></div>
+    </div>
+    <button className="primary-button milestone-close" onClick={close}>ĐÃ HIỂU · TIẾP TỤC HÀNH TRÌNH</button>
+  </section></div>
+}
+
+function BreathingDialog({ close }: { close: () => void }) {
+  const [running, setRunning] = useState(false)
+  const [phase, setPhase] = useState(0)
+  const phases = [{ label: 'HÍT VÀO', seconds: 4 }, { label: 'GIỮ NHỊP', seconds: 7 }, { label: 'THỞ RA', seconds: 8 }]
+  const [remaining, setRemaining] = useState(phases[0].seconds)
+  useEffect(() => {
+    if (!running) return
+    const timer = window.setTimeout(() => {
+      if (remaining > 1) setRemaining(value => value - 1)
+      else {
+        const next = (phase + 1) % phases.length
+        setPhase(next)
+        setRemaining(phases[next].seconds)
+        navigator.vibrate?.(12)
+      }
+    }, 1000)
+    return () => window.clearTimeout(timer)
+  }, [running, remaining, phase])
+  return <div className="modal-backdrop" onMouseDown={close}><section className="breathing-dialog" role="dialog" aria-modal="true" aria-label="Bài tập thở 4 7 8" onMouseDown={event => event.stopPropagation()}>
+    <button className="modal-close" onClick={close}><Icon name="x"/></button><Pill>BREATHING PROTOCOL</Pill><h2>Đưa hệ thống về nhịp chậm</h2><p>Hít vào 4 giây · Giữ 7 giây · Thở ra 8 giây. Dừng lại nếu bạn thấy chóng mặt hoặc khó chịu.</p>
+    <div className={`breathing-orb ${running ? `running phase-${phase}` : ''}`}><span>{running ? phases[phase].label : 'SẴN SÀNG'}</span><strong>{running ? remaining : '60'}</strong><small>{running ? 'GIÂY' : 'GIÂY DẪN NHỊP'}</small></div>
+    <button className="primary-button breathing-start" onClick={() => setRunning(value => !value)}>{running ? 'TẠM DỪNG' : 'BẮT ĐẦU DẪN NHỊP'}</button>
+  </section></div>
+}
+
+function SanctuaryDialog({ close }: { close: () => void }) {
+  const [sound, setSound] = useState(false)
+  return <div className="modal-backdrop" onMouseDown={close}><section className="sanctuary-dialog" role="dialog" aria-modal="true" aria-label="Không gian phục hồi" onMouseDown={event => event.stopPropagation()}>
+    <button className="modal-close" onClick={close}><Icon name="x"/></button><div className="sanctuary-moon"><Icon name="moon" size={40}/><i/><i/></div><Pill>LOW STIMULUS SPACE</Pill><h2>Không cần giải quyết gì lúc này.</h2><p>Hạ độ sáng, đặt điện thoại xuống và cho mắt nghỉ. Âm thanh nền chỉ là tùy chọn hỗ trợ thư giãn.</p>
+    <button className={`sound-control ${sound ? 'playing' : ''}`} onClick={() => setSound(value => !value)}><span><i/><i/><i/><i/></span><div><strong>{sound ? 'Đang phát · Brown noise' : 'Brown noise · Đã tắt'}</strong><small>{sound ? 'Chạm để tạm dừng' : 'Chạm để bật mô phỏng'}</small></div></button>
+    <button className="secondary-button sanctuary-exit" onClick={close}>KẾT THÚC PHIÊN NGHỈ</button>
+  </section></div>
+}
+
+function SetStreakDialog({ current, close, save }: { current: number; close: () => void; save: (days: number) => void }) {
+  const [value, setValue] = useState(String(current))
+  const parsed = Number(value)
+  const valid = Number.isInteger(parsed) && parsed >= 0 && parsed <= 3650
+  return <div className="modal-backdrop" onMouseDown={close}><section className="streak-dialog" role="dialog" aria-modal="true" aria-label="Chỉnh số ngày chuỗi" onMouseDown={event => event.stopPropagation()}>
+    <button className="modal-close" onClick={close}><Icon name="x"/></button><div className="modal-symbol"><Icon name="calendar" size={28}/></div><Pill>SYNC JOURNEY</Pill><h2>Tiếp tục hành trình cũ</h2><p>Nếu bạn chuyển từ ứng dụng khác, hãy nhập số ngày đã hoàn thành. MindShield sẽ đặt lại vị trí trên bản đồ tương ứng.</p>
+    <label className="streak-input"><span>SỐ NGÀY TỈNH THỨC</span><div><input autoFocus inputMode="numeric" type="number" min="0" max="3650" value={value} onChange={event => setValue(event.target.value)}/><small>NGÀY</small></div></label>
+    <div className="streak-preview"><span>VỊ TRÍ SAU KHI ĐỒNG BỘ</span><strong>{valid ? milestones[Math.max(0, milestones.findLastIndex(item => item.day <= parsed))].title : 'Dữ liệu chưa hợp lệ'}</strong></div>
+    <div className="streak-warning"><Icon name="info" size={17}/><span>Chỉ dùng để chuyển dữ liệu thật của bạn. Chuỗi là công cụ theo dõi, không phải thước đo giá trị bản thân.</span></div>
+    <div className="modal-actions"><button className="primary-button" disabled={!valid} onClick={() => valid && save(parsed)}>XÁC NHẬN ĐỒNG BỘ</button><button className="secondary-button" onClick={close}>HỦY</button></div>
+  </section></div>
 }
 
 export default App
