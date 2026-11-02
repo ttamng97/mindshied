@@ -56,6 +56,10 @@ function App() {
   const [toast, setToast] = useState('')
   const [checked, setChecked] = useState([true, true, false, false, true, false, false, false, true])
   const [protections, setProtections] = useState([true, true, true, false])
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [focusMode, setFocusMode] = useState(true)
+  const [lowStimulus, setLowStimulus] = useState(false)
 
   const notify = (message: string) => {
     setToast(message)
@@ -90,7 +94,7 @@ function App() {
           <p>Lá chắn hoạt động liên tục</p>
           <small>Độ trễ trung bình 0.06ms</small>
         </div>
-        <button className="profile">
+        <button className="profile" onClick={() => setSettingsOpen(true)}>
           <span className="avatar">N</span>
           <span><strong>Người kiến tạo</strong><small>Ngày thứ 3 · Cấp 02</small></span>
           <Icon name="settings" size={17} />
@@ -105,9 +109,10 @@ function App() {
           </div>
           <div className="top-actions">
             <div className="protection-badge"><span className="live-dot" /><span>Bảo vệ</span><strong>BẬT</strong><small>0.06ms</small></div>
-            <button className="icon-button" aria-label="Thông báo"><Icon name="bell" /><span className="notification-dot" /></button>
-            <button className="icon-button" aria-label="Cài đặt"><Icon name="settings" /></button>
+            <button className={`icon-button ${notificationsOpen ? 'selected' : ''}`} aria-label="Thông báo" aria-expanded={notificationsOpen} onClick={() => { setNotificationsOpen(v => !v); setSettingsOpen(false) }}><Icon name="bell" /><span className="notification-dot" /></button>
+            <button className={`icon-button ${settingsOpen ? 'selected' : ''}`} aria-label="Cài đặt" aria-expanded={settingsOpen} onClick={() => { setSettingsOpen(true); setNotificationsOpen(false) }}><Icon name="settings" /></button>
           </div>
+          {notificationsOpen && <NotificationPanel close={() => setNotificationsOpen(false)} notify={notify} />}
         </header>
 
         {tab === 'home' && <Home pushups={pushups} pullups={pullups} spent={spent} addPushups={addPushups} setPullups={setPullups} setSpent={setSpent} setSos={setSos} notify={notify} />}
@@ -120,6 +125,7 @@ function App() {
       </nav>
 
       {sos && <SosModal close={() => setSos(false)} action={() => { setSos(false); addPushups(25) }} />}
+      {settingsOpen && <SettingsModal close={() => setSettingsOpen(false)} focusMode={focusMode} setFocusMode={setFocusMode} lowStimulus={lowStimulus} setLowStimulus={setLowStimulus} notify={notify} />}
       {toast && <div className="toast"><span><Icon name="check" size={15} /></span>{toast}</div>}
     </div>
   )
@@ -272,6 +278,50 @@ function SosModal({close,action}:{close:()=>void;action:()=>void}) {
     ['03','Hành động ngay','Ngắt suy nghĩ bằng vận động: xỏ giày, hít đất 25 cái hoặc đi bộ 10 phút.'],
   ]
   return <div className="modal-backdrop" role="presentation" onMouseDown={close}><section className="modal" role="dialog" aria-modal="true" aria-label="Cắt cơn bế tắc" onMouseDown={e=>e.stopPropagation()}><button className="modal-close" onClick={close}><Icon name="x"/></button><div className="modal-symbol"><Icon name="brain" size={30}/></div><Pill tone="red">SOS · STOIC PROTOCOL</Pill><h2>Dừng lại. Bạn không hề kém cỏi.</h2><p className="modal-lead">Hít sâu. Chúng ta chỉ cần đưa tâm trí về một hành động vật lý duy nhất.</p><div className="modal-steps">{steps.map(s=><div key={s[0]}><span>{s[0]}</span><div><strong>{s[1]}</strong><p>{s[2]}</p></div></div>)}</div><div className="modal-actions"><button className="primary-button" onClick={action}><Icon name="activity"/> HÍT ĐẤT 25 CÁI NGAY</button><button className="secondary-button" onClick={close}>TÔI ĐÃ TỈNH THỨC</button></div></section></div>
+}
+
+function NotificationPanel({ close, notify }: { close: () => void; notify: (message: string) => void }) {
+  const items: { icon: IconName; title: string; text: string; time: string; tone?: string }[] = [
+    { icon: 'activity', title: 'Sắp đến giờ vận động', text: 'Calisthenics bắt đầu sau 22 phút.', time: '16:38' },
+    { icon: 'wallet', title: 'Ngân sách vẫn an toàn', text: 'Bạn còn 20.000đ cho hôm nay.', time: '15:12', tone: 'gold' },
+    { icon: 'shield', title: 'Lá chắn hoạt động ổn định', text: 'Không phát hiện tín hiệu rủi ro.', time: '12:04' },
+  ]
+  return <div className="notification-panel">
+    <div className="panel-heading"><div><span>TRUNG TÂM TÍN HIỆU</span><h2>Thông báo</h2></div><button onClick={close} aria-label="Đóng thông báo"><Icon name="x" size={17}/></button></div>
+    <div className="notification-list">{items.map((item, index) => <button key={item.title} className={index === 0 ? 'unread' : ''} onClick={() => notify(`Đã xem: ${item.title}`)}><span className={`signal-icon ${item.tone || ''}`}><Icon name={item.icon} size={17}/></span><span><strong>{item.title}</strong><small>{item.text}</small></span><time>{item.time}</time></button>)}</div>
+    <button className="panel-footer" onClick={() => { notify('Đã đánh dấu tất cả là đã đọc'); close() }}>ĐÁNH DẤU TẤT CẢ ĐÃ ĐỌC <Icon name="check" size={14}/></button>
+  </div>
+}
+
+function SettingsModal({ close, focusMode, setFocusMode, lowStimulus, setLowStimulus, notify }: {
+  close: () => void
+  focusMode: boolean
+  setFocusMode: React.Dispatch<React.SetStateAction<boolean>>
+  lowStimulus: boolean
+  setLowStimulus: React.Dispatch<React.SetStateAction<boolean>>
+  notify: (message: string) => void
+}) {
+  return <div className="modal-backdrop settings-backdrop" role="presentation" onMouseDown={close}>
+    <section className="settings-modal" role="dialog" aria-modal="true" aria-label="Cài đặt MindShield" onMouseDown={event => event.stopPropagation()}>
+      <div className="settings-head"><div className="settings-symbol"><Icon name="settings" size={22}/></div><div><span>SYSTEM CONTROL</span><h2>Cài đặt MindShield</h2><p>Tinh chỉnh trải nghiệm mà không làm gián đoạn lá chắn.</p></div><button className="modal-close" onClick={close}><Icon name="x"/></button></div>
+      <div className="settings-section">
+        <h3>GIAO DIỆN & TẬP TRUNG</h3>
+        <SettingRow icon="zap" title="Chế độ tập trung" text="Ẩn thông tin phụ, chỉ giữ lại hành động quan trọng." enabled={focusMode} setEnabled={setFocusMode}/>
+        <SettingRow icon="moon" title="Giảm kích thích thị giác" text="Giảm glow và chuyển động trong khung giờ nghỉ." enabled={lowStimulus} setEnabled={setLowStimulus}/>
+      </div>
+      <div className="settings-section">
+        <h3>HỆ THỐNG</h3>
+        <button className="settings-link" onClick={() => notify('Lịch nhắc hiện tại: 17:00 và 21:30')}><span className="settings-row-icon"><Icon name="bell"/></span><span><strong>Lịch nhắc kỷ luật</strong><small>17:00 tập luyện · 21:30 hạ nhịp</small></span><Icon name="arrow" size={16}/></button>
+        <button className="settings-link" onClick={() => notify('Dữ liệu được lưu cục bộ và bảo mật')}><span className="settings-row-icon"><Icon name="lock"/></span><span><strong>Dữ liệu & quyền riêng tư</strong><small>Lưu cục bộ · Không chia sẻ dữ liệu</small></span><Icon name="arrow" size={16}/></button>
+      </div>
+      <div className="settings-status"><span className="live-dot"/><div><strong>MindShield v2.4 đang hoạt động bình thường</strong><small>Đồng bộ gần nhất: vừa xong</small></div><Pill>ONLINE</Pill></div>
+      <button className="primary-button settings-save" onClick={() => { notify('Đã lưu tùy chọn giao diện'); close() }}>LƯU THAY ĐỔI</button>
+    </section>
+  </div>
+}
+
+function SettingRow({ icon, title, text, enabled, setEnabled }: { icon: IconName; title: string; text: string; enabled: boolean; setEnabled: React.Dispatch<React.SetStateAction<boolean>> }) {
+  return <div className="settings-link"><span className="settings-row-icon"><Icon name={icon}/></span><span><strong>{title}</strong><small>{text}</small></span><button className={`toggle ${enabled ? 'on' : ''}`} onClick={() => setEnabled(value => !value)} aria-label={`Bật tắt ${title}`}><i/></button></div>
 }
 
 export default App
